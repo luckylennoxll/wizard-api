@@ -59,9 +59,9 @@
       "hidden": true
     }
   ],
-  "release-type": "node",
+  "release-type": "go",
   "extra-files": [
-    "src/version.ts",
+    "internal/version.go",
     "README.md"
   ]
 }
