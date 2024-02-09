@@ -11,20 +11,13 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
-    if: github.repository == 'stainless-sdks/audioreworkvisions-node'
+    if: github.repository == 'luckylennoxll/wizard-api'
 
     steps:
       - uses: actions/checkout@v3
+  
+      - name: Setup go
+        uses: actions/setup-go@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
-        run: |
-          yarn install
-
-      - name: Check types
-        run: |
-          yarn build
+      - run: |
+          go build ./...
