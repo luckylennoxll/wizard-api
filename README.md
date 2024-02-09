@@ -1,243 +1,273 @@
-# Audioreworkvisions Node API Library
+# Audioreworkvisions Go API Library
 
-[![NPM version](https://img.shields.io/npm/v/audioreworkvisions.svg)](https://npmjs.org/package/audioreworkvisions)
+<a href="https://pkg.go.dev/github.com/luckylennoxll/audioreworkvisions-go"><img src="https://pkg.go.dev/badge/github.com/luckylennoxll/audioreworkvisions-go.svg" alt="Go Reference"></a>
 
-This library provides convenient access to the Audioreworkvisions REST API from server-side TypeScript or JavaScript.
-
-The REST API documentation can be found [on docs.audioreworkvisions.com](https://docs.audioreworkvisions.com). The full API of this library can be found in [api.md](api.md).
+The Audioreworkvisions Go library provides convenient access to [the Audioreworkvisions REST
+API](https://docs.audioreworkvisions.com) from applications written in Go. The full API of this library can be found in [api.md](api.md).
 
 ## Installation
 
-```sh
-npm install --save audioreworkvisions
-# or
-yarn add audioreworkvisions
+```go
+import (
+	"github.com/luckylennoxll/audioreworkvisions-go" // imported as audioreworkvisions
+)
 ```
+
+Or to pin the version:
+
+```sh
+go get -u 'github.com/luckylennoxll/audioreworkvisions-go@v0.0.1-alpha.0'
+```
+
+## Requirements
+
+This library requires Go 1.18+.
 
 ## Usage
 
 The full API of this library can be found in [api.md](api.md).
 
-<!-- prettier-ignore -->
-```js
-import Audioreworkvisions from 'audioreworkvisions';
+```go
+package main
 
-const audioreworkvisions = new Audioreworkvisions();
+import (
+	"context"
+	"fmt"
 
-async function main() {
-  const pet = await audioreworkvisions.pets.retrieve('REPLACE_ME');
+	"github.com/luckylennoxll/audioreworkvisions-go"
+)
 
-  console.log(pet.id);
+func main() {
+	client := audioreworkvisions.NewClient()
+	pet, err := client.Pets.Get(context.TODO(), "REPLACE_ME")
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Printf("%+v\n", pet.ID)
 }
 
-main();
 ```
 
-### Request & Response types
+### Request Fields
 
-This library includes TypeScript definitions for all request params and response fields. You may import and use them like so:
+All request parameters are wrapped in a generic `Field` type,
+which we use to distinguish zero values from null or omitted fields.
 
-<!-- prettier-ignore -->
-```ts
-import Audioreworkvisions from 'audioreworkvisions';
+This prevents accidentally sending a zero value if you forget a required parameter,
+and enables explicitly sending `null`, `false`, `''`, or `0` on optional parameters.
+Any field not specified is not sent.
 
-const audioreworkvisions = new Audioreworkvisions();
+To construct fields with values, use the helpers `String()`, `Int()`, `Float()`, or most commonly, the generic `F[T]()`.
+To send a null, use `Null[T]()`, and to send a nonconforming value, use `Raw[T](any)`. For example:
 
-async function main() {
-  const pet: Audioreworkvisions.Pet = await audioreworkvisions.pets.retrieve('REPLACE_ME');
+```go
+params := FooParams{
+	Name: audioreworkvisions.F("hello"),
+
+	// Explicitly send `"description": null`
+	Description: audioreworkvisions.Null[string](),
+
+	Point: audioreworkvisions.F(audioreworkvisions.Point{
+		X: audioreworkvisions.Int(0),
+		Y: audioreworkvisions.Int(1),
+
+		// In cases where the API specifies a given type,
+		// but you want to send something else, use `Raw`:
+		Z: audioreworkvisions.Raw[int64](0.01), // sends a float
+	}),
 }
-
-main();
 ```
 
-Documentation for each method, request param, and response field are available in docstrings and will appear on hover in most modern editors.
+### Response Objects
 
-## Handling errors
+All fields in response structs are value types (not pointers or wrappers).
 
-When the library is unable to connect to the API,
-or if the API returns a non-success status code (i.e., 4xx or 5xx response),
-a subclass of `APIError` will be thrown:
+If a given field is `null`, not present, or invalid, the corresponding field
+will simply be its zero value.
 
-<!-- prettier-ignore -->
-```ts
-async function main() {
-  const pet = await audioreworkvisions.pets.retrieve('REPLACE_ME').catch((err) => {
-    if (err instanceof Audioreworkvisions.APIError) {
-      console.log(err.status); // 400
-      console.log(err.name); // BadRequestError
-      console.log(err.headers); // {server: 'nginx', ...}
-    } else {
-      throw err;
-    }
-  });
+All response structs also include a special `JSON` field, containing more detailed
+information about each property, which you can use like so:
+
+```go
+if res.Name == "" {
+	// true if `"name"` is either not present or explicitly null
+	res.JSON.Name.IsNull()
+
+	// true if the `"name"` key was not present in the repsonse JSON at all
+	res.JSON.Name.IsMissing()
+
+	// When the API returns data that cannot be coerced to the expected type:
+	if res.JSON.Name.IsInvalid() {
+		raw := res.JSON.Name.Raw()
+
+		legacyName := struct{
+			First string `json:"first"`
+			Last  string `json:"last"`
+		}{}
+		json.Unmarshal([]byte(raw), &legacyName)
+		name = legacyName.First + " " + legacyName.Last
+	}
 }
-
-main();
 ```
 
-Error codes are as followed:
+These `.JSON` structs also include an `Extras` map containing
+any properties in the json response that were not specified
+in the struct. This can be useful for API features not yet
+present in the SDK.
 
-| Status Code | Error Type                 |
-| ----------- | -------------------------- |
-| 400         | `BadRequestError`          |
-| 401         | `AuthenticationError`      |
-| 403         | `PermissionDeniedError`    |
-| 404         | `NotFoundError`            |
-| 422         | `UnprocessableEntityError` |
-| 429         | `RateLimitError`           |
-| >=500       | `InternalServerError`      |
-| N/A         | `APIConnectionError`       |
-
-### Retries
-
-Certain errors will be automatically retried 2 times by default, with a short exponential backoff.
-Connection errors (for example, due to a network connectivity problem), 408 Request Timeout, 409 Conflict,
-429 Rate Limit, and >=500 Internal errors will all be retried by default.
-
-You can use the `maxRetries` option to configure or disable this:
-
-<!-- prettier-ignore -->
-```js
-// Configure the default for all requests:
-const audioreworkvisions = new Audioreworkvisions({
-  maxRetries: 0, // default is 2
-});
-
-// Or, configure per-request:
-await audioreworkvisions.pets.retrieve('REPLACE_ME', {
-  maxRetries: 5,
-});
+```go
+body := res.JSON.ExtraFields["my_unexpected_field"].Raw()
 ```
+
+### RequestOptions
+
+This library uses the functional options pattern. Functions defined in the
+`option` package return a `RequestOption`, which is a closure that mutates a
+`RequestConfig`. These options can be supplied to the client or at individual
+requests. For example:
+
+```go
+client := audioreworkvisions.NewClient(
+	// Adds a header to every request made by the client
+	option.WithHeader("X-Some-Header", "custom_header_info"),
+)
+
+client.Pets.Get(context.TODO(), ...,
+	// Override the header
+	option.WithHeader("X-Some-Header", "some_other_custom_header_info"),
+	// Add an undocumented field to the request body, using sjson syntax
+	option.WithJSONSet("some.json.path", map[string]string{"my": "object"}),
+)
+```
+
+The full list of request options is [here](https://pkg.go.dev/github.com/luckylennoxll/audioreworkvisions-go/option).
+
+### Pagination
+
+This library provides some conveniences for working with paginated list endpoints.
+
+You can use `.ListAutoPaging()` methods to iterate through items across all pages:
+
+```go
+// TODO
+```
+
+Or you can use simple `.List()` methods to fetch a single page and receive a standard response object
+with additional helper methods like `.GetNextPage()`, e.g.:
+
+```go
+// TODO
+```
+
+### Errors
+
+When the API returns a non-success status code, we return an error with type
+`*audioreworkvisions.Error`. This contains the `StatusCode`, `*http.Request`, and
+`*http.Response` values of the request, as well as the JSON of the error body
+(much like other response objects in the SDK).
+
+To handle errors, we recommend that you use the `errors.As` pattern:
+
+```go
+_, err := client.Pets.Get(context.TODO(), "REPLACE_ME")
+if err != nil {
+	var apierr *audioreworkvisions.Error
+	if errors.As(err, &apierr) {
+		println(string(apierr.DumpRequest(true)))  // Prints the serialized HTTP request
+		println(string(apierr.DumpResponse(true))) // Prints the serialized HTTP response
+	}
+	panic(err.Error()) // GET "/pets/{petId}": 400 Bad Request { ... }
+}
+```
+
+When other errors occur, they are returned unwrapped; for example,
+if HTTP transport fails, you might receive `*url.Error` wrapping `*net.OpError`.
 
 ### Timeouts
 
-Requests time out after 1 minute by default. You can configure this with a `timeout` option:
+Requests do not time out by default; use context to configure a timeout for a request lifecycle.
 
-<!-- prettier-ignore -->
-```ts
+Note that if a request is [retried](#retries), the context timeout does not start over.
+To set a per-retry timeout, use `option.WithRequestTimeout()`.
+
+```go
+// This sets the timeout for the request, including all the retries.
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+client.Pets.Get(
+	ctx,
+	"REPLACE_ME",
+	// This sets the per-retry timeout
+	option.WithRequestTimeout(20*time.Second),
+)
+```
+
+## Retries
+
+Certain errors will be automatically retried 2 times by default, with a short exponential backoff.
+We retry by default all connection errors, 408 Request Timeout, 409 Conflict, 429 Rate Limit,
+and >=500 Internal errors.
+
+You can use the `WithMaxRetries` option to configure or disable this:
+
+```go
 // Configure the default for all requests:
-const audioreworkvisions = new Audioreworkvisions({
-  timeout: 20 * 1000, // 20 seconds (default is 1 minute)
-});
+client := audioreworkvisions.NewClient(
+	option.WithMaxRetries(0), // default is 2
+)
 
 // Override per-request:
-await audioreworkvisions.pets.retrieve('REPLACE_ME', {
-  timeout: 5 * 1000,
-});
+client.Pets.Get(
+	context.TODO(),
+	"REPLACE_ME",
+	option.WithMaxRetries(5),
+)
 ```
 
-On timeout, an `APIConnectionTimeoutError` is thrown.
+### Middleware
 
-Note that requests which time out will be [retried twice by default](#retries).
+We provide `option.WithMiddleware` which applies the given
+middleware to requests.
 
-## Advanced Usage
+```go
+func Logger(req *http.Request, next option.MiddlewareNext) (res *http.Response, err error) {
+	// Before the request
+	start := time.Now()
+	LogReq(req)
 
-### Accessing raw Response data (e.g., headers)
+	// Forward the request to the next handler
+	res, err = next(req)
 
-The "raw" `Response` returned by `fetch()` can be accessed through the `.asResponse()` method on the `APIPromise` type that all methods return.
+	// Handle stuff after the request
+	end := time.Now()
+	LogRes(res, err, start - end)
 
-You can also use the `.withResponse()` method to get the raw `Response` along with the parsed data.
+    return res, err
+}
 
-<!-- prettier-ignore -->
-```ts
-const audioreworkvisions = new Audioreworkvisions();
-
-const response = await audioreworkvisions.pets.retrieve('REPLACE_ME').asResponse();
-console.log(response.headers.get('X-My-Header'));
-console.log(response.statusText); // access the underlying Response object
-
-const { data: pet, response: raw } = await audioreworkvisions.pets.retrieve('REPLACE_ME').withResponse();
-console.log(raw.headers.get('X-My-Header'));
-console.log(pet.id);
+client := audioreworkvisions.NewClient(
+	option.WithMiddleware(Logger),
+)
 ```
 
-## Customizing the fetch client
+When multiple middlewares are provided as variadic arguments, the middlewares
+are applied left to right. If `option.WithMiddleware` is given
+multiple times, for example first in the client then the method, the
+middleware in the client will run first and the middleware given in the method
+will run next.
 
-By default, this library uses `node-fetch` in Node, and expects a global `fetch` function in other environments.
-
-If you would prefer to use a global, web-standards-compliant `fetch` function even in a Node environment,
-(for example, if you are running Node with `--experimental-fetch` or using NextJS which polyfills with `undici`),
-add the following import before your first import `from "Audioreworkvisions"`:
-
-```ts
-// Tell TypeScript and the package to use the global web fetch instead of node-fetch.
-// Note, despite the name, this does not add any polyfills, but expects them to be provided if needed.
-import 'audioreworkvisions/shims/web';
-import Audioreworkvisions from 'audioreworkvisions';
-```
-
-To do the inverse, add `import "audioreworkvisions/shims/node"` (which does import polyfills).
-This can also be useful if you are getting the wrong TypeScript types for `Response` - more details [here](https://github.com/stainless-sdks/tree/main/src/_shims#readme).
-
-You may also provide a custom `fetch` function when instantiating the client,
-which can be used to inspect or alter the `Request` or `Response` before/after each request:
-
-```ts
-import { fetch } from 'undici'; // as one example
-import Audioreworkvisions from 'audioreworkvisions';
-
-const client = new Audioreworkvisions({
-  fetch: async (url: RequestInfo, init?: RequestInfo): Promise<Response> => {
-    console.log('About to make a request', url, init);
-    const response = await fetch(url, init);
-    console.log('Got response', response);
-    return response;
-  },
-});
-```
-
-Note that if given a `DEBUG=true` environment variable, this library will log all requests and responses automatically.
-This is intended for debugging purposes only and may change in the future without notice.
-
-## Configuring an HTTP(S) Agent (e.g., for proxies)
-
-By default, this library uses a stable agent for all http/https requests to reuse TCP connections, eliminating many TCP & TLS handshakes and shaving around 100ms off most requests.
-
-If you would like to disable or customize this behavior, for example to use the API behind a proxy, you can pass an `httpAgent` which is used for all requests (be they http or https), for example:
-
-<!-- prettier-ignore -->
-```ts
-import http from 'http';
-import HttpsProxyAgent from 'https-proxy-agent';
-
-// Configure the default for all requests:
-const audioreworkvisions = new Audioreworkvisions({
-  httpAgent: new HttpsProxyAgent(process.env.PROXY_URL),
-});
-
-// Override per-request:
-await audioreworkvisions.pets.retrieve('REPLACE_ME', {
-  baseURL: 'http://localhost:8080/test-api',
-  httpAgent: new http.Agent({ keepAlive: false }),
-})
-```
+You may also replace the default `http.Client` with
+`option.WithHTTPClient(client)`. Only one http client is
+accepted (this overwrites any previous client) and receives requests after any
+middleware has been applied.
 
 ## Semantic Versioning
 
 This package generally follows [SemVer](https://semver.org/spec/v2.0.0.html) conventions, though certain backwards-incompatible changes may be released as minor versions:
 
-1. Changes that only affect static types, without breaking runtime behavior.
-2. Changes to library internals which are technically public but not intended or documented for external use. _(Please open a GitHub issue to let us know if you are relying on such internals)_.
-3. Changes that we do not expect to impact the vast majority of users in practice.
+1. Changes to library internals which are technically public but not intended or documented for external use. _(Please open a GitHub issue to let us know if you are relying on such internals)_.
+2. Changes that we do not expect to impact the vast majority of users in practice.
 
 We take backwards-compatibility seriously and work hard to ensure you can rely on a smooth upgrade experience.
 
-We are keen for your feedback; please open an [issue](https://www.github.com/stainless-sdks/audioreworkvisions-node/issues) with questions, bugs, or suggestions.
-
-## Requirements
-
-TypeScript >= 4.5 is supported.
-
-The following runtimes are supported:
-
-- Node.js 18 LTS or later ([non-EOL](https://endoflife.date/nodejs)) versions.
-- Deno v1.28.0 or higher, using `import Audioreworkvisions from "npm:audioreworkvisions"`.
-- Bun 1.0 or later.
-- Cloudflare Workers.
-- Vercel Edge Runtime.
-- Jest 28 or greater with the `"node"` environment (`"jsdom"` is not supported at this time).
-- Nitro v2.6 or greater.
-
-Note that React Native is not supported at this time.
-
-If you are interested in other runtime environments, please open or upvote an issue on GitHub.
+We are keen for your feedback; please open an [issue](https://www.github.com/luckylennoxll/audioreworkvisions-go/issues) with questions, bugs, or suggestions.
