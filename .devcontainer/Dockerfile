@@ -1,19 +1,19 @@
 # syntax=docker/dockerfile:1
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS stainless
 
 RUN apt-get update && apt-get install -y \
-  libxkbcommon0 \
-  ca-certificates \
-  git \
-  golang \
-  unzip \
-  libc++1 \
-  vim \
+  nodejs \
+  npm \
+  yarnpkg \
   && apt-get clean autoclean
 
-ENV GOPATH=/go
-ENV PATH=$GOPATH/bin:$PATH
+# Yarn
+RUN ln -sf /usr/bin/yarnpkg /usr/bin/yarn
 
 WORKDIR /workspace
+
+COPY package.json yarn.lock /workspace/
+
+RUN yarn install
 
 COPY . /workspace
