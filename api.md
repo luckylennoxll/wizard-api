@@ -1,12 +1,12 @@
 # Pets
 
-Types:
+Response Types:
 
-- <code><a href="./src/resources/pets.ts">Pet</a></code>
-- <code><a href="./src/resources/pets.ts">Pets</a></code>
+- <a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api">audioreworkvisions</a>.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#Pet">Pet</a>
+- <a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api">audioreworkvisions</a>.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#Pets">Pets</a>
 
 Methods:
 
-- <code title="post /pets">client.pets.<a href="./src/resources/pets.ts">create</a>() -> void</code>
-- <code title="get /pets/{petId}">client.pets.<a href="./src/resources/pets.ts">retrieve</a>(petId) -> Pet</code>
-- <code title="get /pets">client.pets.<a href="./src/resources/pets.ts">list</a>({ ...params }) -> Pets</code>
+- <code title="post /pets">client.Pets.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#PetService.New">New</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>) <a href="https://pkg.go.dev/builtin#error">error</a></code>
+- <code title="get /pets/{petId}">client.Pets.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#PetService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, petID <a href="https://pkg.go.dev/builtin#string">string</a>) (<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api">audioreworkvisions</a>.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#Pet">Pet</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="get /pets">client.Pets.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#PetService.List">List</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, query <a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api">audioreworkvisions</a>.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#PetListParams">PetListParams</a>) (<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api">audioreworkvisions</a>.<a href="https://pkg.go.dev/github.com/luckylennoxll/wizard-api#Pets">Pets</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
